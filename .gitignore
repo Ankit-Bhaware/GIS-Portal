@@ -1,0 +1,65 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Django stuff
+*.log
+*.pot
+*.pyc
+*.pyo
+*.db
+*.sqlite3
+*.sqlite3-journal
+*.env
+.env.*
+
+# Local settings
+settings_local.py
+config/local_settings.py
+
+# Media and static
+/media
+/staticfiles
+/static/
+
+# VS Code and IDEs
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Node modules (if you're using frontend tooling)
+node_modules/
+
+# Build artifacts
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+
+# Mac/Linux/Windows OS junk
+.DS_Store
+Thumbs.db
+
+# Pip tools
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Docker
+*.pid
+*.tar
+*.gz
+*.bak
+docker-compose.override.yml
+
+# Git
+.git/
+
+# Secrets
+secrets.json

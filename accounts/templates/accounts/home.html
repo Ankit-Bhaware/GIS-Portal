@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Taluka & Village Selector - Home</title>
+    <link href="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden; /* Prevent scrollbars due to map */
+            font-family: 'Roboto', sans-serif; /* Keep consistent font */
+        }
+        #map {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 100%;
+        }
+        .dropdown-container {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            z-index: 1;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-width: 250px; /* Limit width for better mobile experience */
+        }
+        .dropdown-container label {
+            font-weight: bold;
+            color: #333;
+        }
+        .dropdown-container select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+            font-size: 1em;
+        }
+        .logout-button-container {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            z-index: 1;
+        }
+        .btn-logout {
+            background-color: #dc3545; /* Red color for logout */
+            border-color: #dc3545;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 5px;
+            font-weight: bold;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+        }
+        .btn-logout:hover {
+            background-color: #c82333;
+            border-color: #bd2130;
+            transform: translateY(-2px);
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .dropdown-container {
+                top: 10px;
+                left: 10px;
+                padding: 10px;
+                max-width: 90%;
+            }
+            .logout-button-container {
+                top: 10px;
+                right: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+
+    <div class="dropdown-container">
+        <label for="taluka">Select Taluka:</label>
+        <select id="taluka"><option disabled selected>Loading…</option></select>
+        <label for="village">Select Village:</label>
+        <select id="village" disabled><option disabled selected>—</option></select>
+    </div>
+
+    <div class="logout-button-container">
+        <a href="{% url 'logout' %}" class="btn btn-logout">Logout</a>
+    </div>
+
+    <script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+
+    <script>
+        // Mapbox Access Token
+        mapboxgl.accessToken = 'pk.eyJ1IjoiYXNkZGFzZGFzZCIsImEiOiJjbWFjZXNnb2QwMnM0MmxzMnF3aWRleHRkIn0.-m1I4ZiAPqhg9_SO6agXfQ';
+
+        // Initialize Mapbox Map
+        const map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/streets-v12',
+            center: [73.8567, 18.5204], // Centered on Pune, India
+            zoom: 9
+        });
+
+        // GeoServer WFS Base URL and TypeNames
+        const WFS_BASE = "http://localhost:9090/geoserver/pune_workspace/ows";
+        const TALUKA_TYPENAME = "pune_workspace:taluka_boundary";
+        const VILLAGE_TYPENAME = "pune_workspace:village_boundary";
+
+        // DOM elements for dropdowns
+        const talukaSelect = document.getElementById("taluka");
+        const villageSelect = document.getElementById("village");
+
+        // Source IDs for Mapbox layers
+        let talukaSourceId = "taluka-source";
+        let villageSourceId = "village-source";
+
+        /**
+         * Helper function to fetch WFS GeoJSON features from GeoServer.
+         * @param {string} typeName - The GeoServer layer type name.
+         * @param {string} cql - Optional CQL filter to apply.
+         * @returns {Promise<object>} - A GeoJSON object.
+         */
+        async function fetchWFSFeatures(typeName, cql = null) {
+            const params = new URLSearchParams({
+                service: 'WFS',
+                version: '1.0.0',
+                request: 'GetFeature',
+                typeName: typeName,
+                outputFormat: 'application/json',
+                maxFeatures: 1000
+            });
+            if (cql) params.append("CQL_FILTER", cql);
+
+            const url = `${WFS_BASE}?${params.toString()}`;
+            try {
+                const res = await fetch(url);
+                if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+                const data = await res.json();
+                return data;
+            } catch (err) {
+                console.error("WFS fetch error:", err);
+                // Display a user-friendly message instead of alert()
+                const errorMessage = "Failed to load data from GeoServer. Please ensure GeoServer is running and accessible, and the WFS layers are published correctly. Check your browser console for details.";
+                // You might want to display this in a dedicated message area on the page
+                alert(errorMessage); // Using alert for now, but consider a custom modal
+                return { features: [] };
+            }
+        }
+
+        /**
+         * Adds or updates a GeoJSON source and layer on the Mapbox map.
+         * @param {string} sourceId - The ID for the Mapbox source.
+         * @param {string} layerType - The Mapbox layer type (e.g., 'fill', 'line').
+         * @param {object} geojson - The GeoJSON data.
+         * @param {object} paint - The paint properties for the layer.
+         */
+        function addOrUpdateGeoJSON(sourceId, layerType, geojson, paint) {
+            if (map.getSource(sourceId)) {
+                map.getSource(sourceId).setData(geojson);
+            } else {
+                map.addSource(sourceId, { type: 'geojson', data: geojson });
+                map.addLayer({
+                    id: sourceId + "-layer",
+                    type: layerType,
+                    source: sourceId,
+                    paint: paint
+                });
+            }
+        }
+
+        // Event listener for map load
+        map.on("load", async () => {
+            console.log("Map loaded, fetching taluka data...");
+            const talukaGeoJSON = await fetchWFSFeatures(TALUKA_TYPENAME);
+            
+            if (talukaGeoJSON.features.length === 0) {
+                talukaSelect.innerHTML = "<option disabled>No Talukas found</option>";
+                console.warn("No taluka features found from WFS.");
+                return;
+            }
+
+            // Extract unique taluka names and sort them
+            // Ensure 'thname11' is the correct attribute name from your GeoServer WFS data
+            const uniqueTalukas = [...new Set(talukaGeoJSON.features.map(f => f.properties.thname11))].sort();
+            talukaSelect.innerHTML = "<option disabled selected>Select Taluka</option>";
+            uniqueTalukas.forEach(name => {
+                const opt = document.createElement("option");
+                opt.value = name;
+                opt.textContent = name;
+                talukaSelect.appendChild(opt);
+            });
+            console.log("Talukas loaded into dropdown.");
+        });
+
+        // Event listener for Taluka selection change
+        talukaSelect.addEventListener("change", async e => {
+            const talukaName = e.target.value;
+            console.log(`Taluka selected: ${talukaName}`);
+
+            // Fetch and display selected taluka boundary
+            // Ensure 'thname11' is the correct attribute name for CQL filter
+            const talukaGeoJSON = await fetchWFSFeatures(TALUKA_TYPENAME, `thname11='${talukaName}'`);
+            addOrUpdateGeoJSON(talukaSourceId, 'fill', talukaGeoJSON, {
+                'fill-color': '#0000ff',
+                'fill-opacity': 0.3,
+                'fill-outline-color': '#000080' /* Darker outline */
+            });
+
+            // Fit map bounds to the selected taluka
+            if (talukaGeoJSON.features.length > 0) {
+                const bbox = turf.bbox(talukaGeoJSON);
+                map.fitBounds(bbox, { padding: 50, duration: 1000 });
+                console.log(`Map centered on ${talukaName}.`);
+            }
+
+            // Fetch and display villages within the selected taluka
+            // Ensure 't_name' is the correct attribute name for villages linked to taluka
+            const villageGeoJSON = await fetchWFSFeatures(VILLAGE_TYPENAME, `t_name='${talukaName}'`);
+            addOrUpdateGeoJSON(villageSourceId, 'fill', villageGeoJSON, {
+                'fill-color': '#ff0000',
+                'fill-opacity': 0.2,
+                'fill-outline-color': '#800000' /* Darker outline */
+            });
+
+            // Populate village dropdown
+            villageSelect.innerHTML = "<option disabled selected>Select Village</option>";
+            // Ensure 'name' is the correct attribute name for village names
+            new Set(villageGeoJSON.features.map(f => f.properties.name)).forEach(name => {
+                const o = document.createElement("option");
+                o.value = name;
+                o.textContent = name;
+                villageSelect.appendChild(o);
+            });
+            villageSelect.disabled = false;
+            console.log(`Villages for ${talukaName} loaded into dropdown.`);
+        });
+
+        // Event listener for Village selection change
+        villageSelect.addEventListener("change", async e => {
+            const villageName = e.target.value;
+            console.log(`Village selected: ${villageName}`);
+
+            // Fetch and display selected village boundary
+            // Ensure 'name' is the correct attribute name for CQL filter
+            const geojson = await fetchWFSFeatures(VILLAGE_TYPENAME, `name='${villageName}'`);
+            addOrUpdateGeoJSON(villageSourceId, 'fill', geojson, {
+                'fill-color': '#ff0000',
+                'fill-opacity': 0.5,
+                'fill-outline-color': '#800000' /* Darker outline */
+            });
+            
+            // Fit map bounds to the selected village
+            if (geojson.features.length > 0) {
+                const bbox = turf.bbox(geojson);
+                map.fitBounds(bbox, { padding: 50, duration: 1000 });
+                console.log(`Map centered on ${villageName}.`);
+            }
+        });
+
+        // Handle window resize to ensure map is responsive
+        window.addEventListener('resize', () => {
+            map.resize();
+        });
+
+        // Initial map resize to ensure it fits the container on load
+        map.once('idle', () => {
+            map.resize();
+        });
+    </script>
+</body>
+</html>
