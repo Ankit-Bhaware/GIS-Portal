@@ -1,0 +1,18 @@
+# .github/workflows/test-oidc.yml
+name: OIDC Smoke Test
+on: [push]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  oidc:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Request AWS STS token
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::515966497594:role/gh-actions-oidc-role
+          aws-region: us-east-1
+      - run: aws sts get-caller-identity
