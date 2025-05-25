@@ -13,6 +13,6 @@ jobs:
       - name: Request AWS STS token
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::515966497594:role/gh-actions-oidc-role
+          role-to-assume: arn:aws:iam::515966497594:role/OICD-Github
           aws-region: us-east-1
       - run: aws sts get-caller-identity
