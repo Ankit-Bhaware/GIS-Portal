@@ -6,8 +6,8 @@ on:
       - main
 
 permissions:
-  id-token: write
-  contents: read
+  id-token: write # Required for OIDC to assume AWS IAM role
+  contents: read  # Required to checkout the repository code
 
 jobs:
   build-and-deploy:
@@ -20,45 +20,59 @@ jobs:
       - name: Configure AWS credentials using OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.IAM_ROLE_TO_ASSUME }}
-          aws-region: ap-south-1 # Hardcode region, it's not a secret
-          role-session-name: GISAppDeploySession
+          role-to-assume: ${{ secrets.IAM_ROLE_TO_ASSUME }} # IAM Role ARN for OIDC
+          aws-region: ap-south-1 # Hardcoded region for the deployment
+          role-session-name: GISAppDeploySession # Unique session name for auditing
 
       - name: Fetch Dynamic AWS Configuration
         id: config
         run: |
-          # Fetch Account ID dynamically
+          # Fetch Account ID dynamically using AWS CLI
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          echo "AWS_ACCOUNT_ID=$ACCOUNT_ID" >> $GITHUB_ENV
+          echo "AWS_ACCOUNT_ID=$ACCOUNT_ID" >> $GITHUB_ENV # Set as environment variable
           
-          # Fetch EC2 Instance ID (needed for SSM)
+          # Fetch EC2 Instance ID by tag (assumes a single running instance with this tag)
           INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=gis-app-server" "Name=instance-state-name,Values=running" --query "Reservations[0].Instances[0].InstanceId" --output text)
-          echo "EC2_INSTANCE_ID=$INSTANCE_ID" >> $GITHUB_ENV
+          echo "EC2_INSTANCE_ID=$INSTANCE_ID" >> $GITHUB_ENV # Set as environment variable
 
       - name: Login to Amazon ECR
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+        uses: aws-actions/amazon-ecr-login@v2 # Action to log in to ECR
 
-      # (The 'Build, tag, and push' steps for Django and GeoServer remain exactly the same)
+      # (The 'Build, tag, and push' steps for Django and GeoServer would go here)
+      # Example placeholder for Django:
       - name: Build, tag, and push Django image to ECR
-        
-      - name: Build, tag, and push GeoServer image to ECR
-     
+        run: |
+          # Replace with your actual Docker build and push commands
+          # For example:
+          # docker build -t ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com/gis-django:latest ./django-app
+          # docker push ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com/gis-django:latest
 
-      
+      # Example placeholder for GeoServer:
+      - name: Build, tag, and push GeoServer image to ECR
+        run: |
+          # Replace with your actual Docker build and push commands
+          # For example:
+          # docker build -t ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com/gis-geoserver:latest ./geoserver-config
+          # docker push ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com/gis-geoserver:latest
+
+      # --- This is the new, keyless deployment step ---
       - name: Deploy to EC2 via SSM Session Manager
-        uses: aws-actions/aws-ssm-send-command@v1
+        uses: aws-actions/aws-ssm-send-command@v1 # Action to send commands via SSM
         with:
-          instance-ids: ${{ env.EC2_INSTANCE_ID }}
+          instance-ids: ${{ env.EC2_INSTANCE_ID }} # Target EC2 instance
           command: |
             #!/bin/bash
+            # Navigate to the application directory on the EC2 instance
             cd /home/ubuntu/app
             
-            # Export variables for docker-compose
+            # Export AWS environment variables for docker-compose to use (e.g., for ECR image pulling)
             export AWS_ACCOUNT_ID=${{ env.AWS_ACCOUNT_ID }}
             export AWS_REGION=ap-south-1
             
-            # Run deployment commands
+            # Pull the latest Docker images from ECR
             docker-compose pull
+            # Bring up the Docker containers in detached mode, restarting if already running
             docker-compose up -d
-            docker image prune -af
+            # Remove all dangling and unused images to free up disk space
+            docker image prune -af 
