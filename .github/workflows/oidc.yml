@@ -1,65 +1,72 @@
 name: Build and Deploy GIS App to AWS (OIDC & Dynamic Config)
+
 on:
   push:
     branches:
       - main
+
 permissions:
-  id-token: write # Required for OIDC to assume AWS IAM role
-  contents: read  # Required to checkout the repository code
+  id-token: write    # Required for OIDC to assume AWS IAM role
+  contents: read     # Required to checkout the repository code
+
 jobs:
   build-and-deploy:
-    runs-on: ubuntu-latest 
+    runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
       - name: Configure AWS credentials using OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.IAM_ROLE_TO_ASSUME }} # IAM Role ARN for OIDC
-          aws-region: ap-south-1 # Hardcoded region for the deployment
-          role-session-name: GISAppDeploySession # Unique session name for auditing
+          role-to-assume: ${{ secrets.IAM_ROLE_TO_ASSUME }}
+          aws-region: ap-south-1
+          role-session-name: GISAppDeploySession
+
       - name: Fetch Dynamic AWS Configuration
         id: config
         run: |
-          # Fetch Account ID dynamically using AWS CLI
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          echo "AWS_ACCOUNT_ID=$ACCOUNT_ID" >> $GITHUB_ENV # Set as environment variable
-          # Fetch EC2 Instance ID by tag (assumes a single running instance with this tag)
-          INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=gis-app-server" "Name=instance-state-name,Values=running" --query "Reservations[0].Instances[0].InstanceId" --output text)
-          echo "EC2_INSTANCE_ID=$INSTANCE_ID" >> $GITHUB_ENV # Set as environment variable
+          echo "AWS_ACCOUNT_ID=$ACCOUNT_ID" >> $GITHUB_ENV
+          
+          INSTANCE_ID=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=gis-app-server" "Name=instance-state-name,Values=running" \
+            --query "Reservations[0].Instances[0].InstanceId" --output text)
+          echo "EC2_INSTANCE_ID=$INSTANCE_ID" >> $GITHUB_ENV
+
       - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2 # Action to log in to ECR
-      # (The 'Build, tag, and push' steps for Django and GeoServer would go here)
-      # Example placeholder for Django:
+        uses: aws-actions/amazon-ecr-login@v2
+
       - name: Build, tag, and push Django image to ECR
         run: |
-          # Replace with your actual Docker build and push commands
-          # For example:
-          # docker build -t ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com/gis-django:latest ./django-app
-          # docker push ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com/gis-django:latest
-      # Example placeholder for GeoServer:
+          TAG=$(git rev-parse --short HEAD)
+          docker build -t ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com/gis-django:latest ./django-app
+          docker tag ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com/gis-django:latest \
+            ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com/gis-django:$TAG
+          docker push ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com/gis-django:latest
+          docker push ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com/gis-django:$TAG
+
       - name: Build, tag, and push GeoServer image to ECR
         run: |
-          # Replace with your actual Docker build and push commands
-          # For example:
-          # docker build -t ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com/gis-geoserver:latest ./geoserver-config
-          # docker push ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com/gis-geoserver:lates
-      # --- This is the new, keyless deployment step ---
+          TAG=$(git rev-parse --short HEAD)
+          docker build -t ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com/gis-geoserver:latest ./geoserver-config
+          docker tag ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com/gis-geoserver:latest \
+            ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com/gis-geoserver:$TAG
+          docker push ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com/gis-geoserver:latest
+          docker push ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com/gis-geoserver:$TAG
+
       - name: Deploy to EC2 via SSM Session Manager
-        uses: aws-actions/aws-ssm-send-command@v1 # Action to send commands via SSM
+        uses: aws-actions/aws-ssm-send-command@v1
         with:
-          instance-ids: ${{ env.EC2_INSTANCE_ID }} # Target EC2 instance
+          instance-ids: ${{ env.EC2_INSTANCE_ID }}
           command: |
             #!/bin/bash
-            # Navigate to the application directory on the EC2 instance
-            cd /home/ubuntu/app  
-            # Export AWS environment variables for docker-compose to use (e.g., for ECR image pulling)
+            cd /home/ubuntu/app
+
             export AWS_ACCOUNT_ID=${{ env.AWS_ACCOUNT_ID }}
             export AWS_REGION=ap-south-1
-            # Pull the latest Docker images from ECR
+
             docker-compose pull
-            # Bring up the Docker containers in detached mode, restarting if already running
             docker-compose up -d
-            # Remove all dangling and unused images to free up disk space
             docker image prune -af
