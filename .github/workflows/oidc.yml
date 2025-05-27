@@ -1,22 +1,17 @@
 name: Build and Deploy GIS App to AWS (OIDC & Dynamic Config)
-
 on:
   push:
     branches:
       - main
-
 permissions:
   id-token: write # Required for OIDC to assume AWS IAM role
   contents: read  # Required to checkout the repository code
-
 jobs:
   build-and-deploy:
-    runs-on: ubuntu-latest
-    
+    runs-on: ubuntu-latest 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Configure AWS credentials using OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -30,7 +25,6 @@ jobs:
           # Fetch Account ID dynamically using AWS CLI
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           echo "AWS_ACCOUNT_ID=$ACCOUNT_ID" >> $GITHUB_ENV # Set as environment variable
-          
           # Fetch EC2 Instance ID by tag (assumes a single running instance with this tag)
           INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=gis-app-server" "Name=instance-state-name,Values=running" --query "Reservations[0].Instances[0].InstanceId" --output text)
           echo "EC2_INSTANCE_ID=$INSTANCE_ID" >> $GITHUB_ENV # Set as environment variable
@@ -54,8 +48,7 @@ jobs:
           # Replace with your actual Docker build and push commands
           # For example:
           # docker build -t ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com/gis-geoserver:latest ./geoserver-config
-          # docker push ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com/gis-geoserver:latest
-
+          # docker push ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com/gis-geoserver:lates
       # --- This is the new, keyless deployment step ---
       - name: Deploy to EC2 via SSM Session Manager
         uses: aws-actions/aws-ssm-send-command@v1 # Action to send commands via SSM
@@ -64,12 +57,10 @@ jobs:
           command: |
             #!/bin/bash
             # Navigate to the application directory on the EC2 instance
-            cd /home/ubuntu/app
-            
+            cd /home/ubuntu/app  
             # Export AWS environment variables for docker-compose to use (e.g., for ECR image pulling)
             export AWS_ACCOUNT_ID=${{ env.AWS_ACCOUNT_ID }}
             export AWS_REGION=ap-south-1
-            
             # Pull the latest Docker images from ECR
             docker-compose pull
             # Bring up the Docker containers in detached mode, restarting if already running
