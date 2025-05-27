@@ -1,18 +1,64 @@
-# .github/workflows/test-oidc.yml
-name: OIDC Smoke Test
-on: [push]
+name: Build and Deploy GIS App to AWS (OIDC & Dynamic Config)
+
+on:
+  push:
+    branches:
+      - main
 
 permissions:
   id-token: write
   contents: read
 
 jobs:
-  oidc:
+  build-and-deploy:
     runs-on: ubuntu-latest
+    
     steps:
-      - name: Request AWS STS token
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials using OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::515966497594:role/OICD-Github
-          aws-region: us-east-1
-      - run: aws sts get-caller-identity
+          role-to-assume: ${{ secrets.IAM_ROLE_TO_ASSUME }}
+          aws-region: ap-south-1 # Hardcode region, it's not a secret
+          role-session-name: GISAppDeploySession
+
+      - name: Fetch Dynamic AWS Configuration
+        id: config
+        run: |
+          # Fetch Account ID dynamically
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          echo "AWS_ACCOUNT_ID=$ACCOUNT_ID" >> $GITHUB_ENV
+          
+          # Fetch EC2 Instance ID (needed for SSM)
+          INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=gis-app-server" "Name=instance-state-name,Values=running" --query "Reservations[0].Instances[0].InstanceId" --output text)
+          echo "EC2_INSTANCE_ID=$INSTANCE_ID" >> $GITHUB_ENV
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # (The 'Build, tag, and push' steps for Django and GeoServer remain exactly the same)
+      - name: Build, tag, and push Django image to ECR
+        
+      - name: Build, tag, and push GeoServer image to ECR
+     
+
+      
+      - name: Deploy to EC2 via SSM Session Manager
+        uses: aws-actions/aws-ssm-send-command@v1
+        with:
+          instance-ids: ${{ env.EC2_INSTANCE_ID }}
+          command: |
+            #!/bin/bash
+            cd /home/ubuntu/app
+            
+            # Export variables for docker-compose
+            export AWS_ACCOUNT_ID=${{ env.AWS_ACCOUNT_ID }}
+            export AWS_REGION=ap-south-1
+            
+            # Run deployment commands
+            docker-compose pull
+            docker-compose up -d
+            docker image prune -af
