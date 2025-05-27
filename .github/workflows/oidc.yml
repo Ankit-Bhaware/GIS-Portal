@@ -75,4 +75,4 @@ jobs:
             # Bring up the Docker containers in detached mode, restarting if already running
             docker-compose up -d
             # Remove all dangling and unused images to free up disk space
-            docker image prune -af 
+            docker image prune -af
