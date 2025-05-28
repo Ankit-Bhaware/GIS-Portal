@@ -56,17 +56,28 @@ jobs:
           docker push ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com/gis-geoserver:latest
           docker push ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com/gis-geoserver:$TAG
 
+      - name: Build, tag, and push Nginx image to ECR
+        run: |
+          TAG=$(git rev-parse --short HEAD)
+          docker build -t ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com/gis-nginx:latest ./nginx-config
+          docker tag ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com/gis-nginx:latest \
+            ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com/gis-nginx:$TAG
+          docker push ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com/gis-nginx:latest
+          docker push ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.ap-south-1.amazonaws.com/gis-nginx:$TAG
+
       - name: Deploy to EC2 via SSM Session Manager
         uses: aws-actions/aws-ssm-send-command@v1
         with:
           instance-ids: ${{ env.EC2_INSTANCE_ID }}
-          command: |
-            #!/bin/bash
-            cd /home/ubuntu/app
-
-            export AWS_ACCOUNT_ID=${{ env.AWS_ACCOUNT_ID }}
-            export AWS_REGION=ap-south-1
-
-            docker-compose pull
-            docker-compose up -d
-            docker image prune -af
+          document-name: "AWS-RunShellScript"
+          comment: "Deploy GIS app stack via docker-compose"
+          parameters: >
+            commands=[
+              "#!/bin/bash",
+              "cd /home/ubuntu/app",
+              "export AWS_ACCOUNT_ID=${{ env.AWS_ACCOUNT_ID }}",
+              "export AWS_REGION=ap-south-1",
+              "docker-compose pull",
+              "docker-compose up -d django geoserver nginx",
+              "docker image prune -af  # Clean up unused images"
+            ]
