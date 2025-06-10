@@ -1,0 +1,172 @@
+/* ---- Base & Container Styles ---- */
+body,
+html {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  font-family: "Roboto", sans-serif;
+}
+
+#map {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* ---- Data Panel ---- */
+.data-panel {
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  z-index: 1000;
+  background: white;
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 280px;
+  max-height: calc(100vh - 30px);
+  overflow-y: auto;
+}
+
+.data-panel label {
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 2px;
+}
+
+.data-panel select,
+.data-panel input,
+.data-panel button {
+  font-size: 0.9rem;
+}
+
+.data-panel hr {
+  margin-top: 10px;
+  margin-bottom: 8px;
+}
+
+/* ---- Map Tools ---- */
+.map-tools {
+  position: absolute;
+  top: 15px;
+  left: 310px;
+  z-index: 1000;
+  background: white;
+  padding: 8px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.map-tools .btn {
+  border: 1px solid #ccc;
+}
+
+.map-tools .btn.active {
+  background-color: #007bff;
+  color: white;
+  border-color: #007bff;
+}
+
+/* ---- Logout Button ---- */
+.logout-button-container {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1005;
+}
+
+.btn-logout {
+  background-color: #dc3545;
+  border-color: #dc3545;
+  color: white;
+  padding: 8px 15px;
+  border-radius: 5px;
+  font-weight: bold;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+  font-size: 0.9rem;
+}
+
+.btn-logout:hover {
+  background-color: #c82333;
+  border-color: #bd2130;
+  transform: translateY(-2px);
+}
+
+/* Position layer switcher under logout */
+.layer-switcher.ol-control {
+  top: 55px;
+  right: 10px;
+}
+
+/* ---- Popup Styles ---- */
+.ol-popup {
+  position: absolute;
+  background-color: white;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #cccccc;
+  bottom: 12px;
+  left: -50px;
+  min-width: 230px;
+  max-width: 300px;
+  font-size: 0.85em;
+}
+
+.ol-popup:after,
+.ol-popup:before {
+  top: 100%;
+  border: solid transparent;
+  content: " ";
+  height: 0;
+  width: 0;
+  position: absolute;
+  pointer-events: none;
+}
+
+.ol-popup:after {
+  border-top-color: white;
+  border-width: 10px;
+  left: 48px;
+  margin-left: -10px;
+}
+
+.ol-popup:before {
+  border-top-color: #cccccc;
+  border-width: 11px;
+  left: 48px;
+  margin-left: -11px;
+}
+
+.ol-popup-closer {
+  text-decoration: none;
+  position: absolute;
+  top: 2px;
+  right: 8px;
+  font-size: 1.2em;
+  color: #333;
+}
+
+.ol-popup-closer:after {
+  content: "✖";
+}
+
+#popup-content h5 {
+  margin-top: 0;
+  margin-bottom: 8px;
+  font-size: 1.1em;
+  color: #007bff;
+}
+
+#popup-content table {
+  width: 100%;
+}
